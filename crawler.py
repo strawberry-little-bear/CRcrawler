@@ -1060,7 +1060,12 @@ def main():
     
     # 要爬取的编程语言（支持多种语言）
     languages = [
-        'javascript'
+       'python',
+       # 'javascript',
+       # 'java',
+       # 'typescript',
+       # 'golang',
+       # 'cpp'
     ]
     
     # 创建多语言爬虫实例

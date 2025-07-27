@@ -653,6 +653,15 @@ class JSONLToSQLiteConverter:
                     )
                     
                     if file_change_id:
+                        # 处理imported_items，如果是列表则转换为JSON字符串
+                        imported_items = data.get('imported_items')
+                        if isinstance(imported_items, list):
+                            imported_items = json.dumps(imported_items)
+                        elif imported_items is None:
+                            imported_items = None
+                        else:
+                            imported_items = str(imported_items)
+                        
                         cursor.execute("""
                             INSERT INTO file_imports (
                                 file_change_id, import_statement, import_type, module_name,
@@ -663,7 +672,7 @@ class JSONLToSQLiteConverter:
                             data['import_statement'],
                             data.get('import_type'),
                             data.get('module_name'),
-                            data.get('imported_items'),
+                            imported_items,
                             data.get('line_number'),
                             datetime.now().isoformat()
                         ))
@@ -811,8 +820,14 @@ class JSONLToSQLiteConverter:
 def main():
     """主函数"""
     # 配置参数
-    languages = ['javascript', 'python', 'java', 'typescript', 'golang', 'cpp']  # 可以根据需要调整
-    
+    languages = ['python',
+    # 'javascript',
+    # 'java',
+    # 'typescript',
+    # 'golang',
+    # 'cpp'
+    ]
+
     converter = JSONLToSQLiteConverter(
         db_path="github_pr_data.db",
         jsonl_dir="github_pr_data"
