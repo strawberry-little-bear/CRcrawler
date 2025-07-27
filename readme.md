@@ -118,3 +118,84 @@ GITHUB_TOKEN=ghp_YourPersonalAccessTokenHere
   * `{language}_class_changes.jsonl`: 从 `patch` 中提取到的**类/结构体变更**的详细信息。
   * `{language}_imports.jsonl`: 从变更的文件中提取到的**依赖导入**语句。
   * `{language}_diff_hunks.jsonl`: `patch` 内容被结构化解析后的数据块 (Hunks)。
+
+-----
+
+## 🗃️ 数据入库：从 JSONL 到 SQLite
+
+为了更高效地查询和分析数据，项目提供了 `jsonl_to_sqlite.py` 脚本，可以将 `github_pr_data` 目录中所有按语言分类的 `.jsonl` 文件导入到一个关系型的 SQLite 数据库中。
+
+### 功能
+
+  * **自动建表**: 脚本会根据预设的表结构自动创建数据库和所有表。
+  * **关系映射**: 将离散的 JSONL 数据转换为规范化的关系数据，通过外键关联，方便进行复杂的 JOIN 查询。
+  * **数据去重**: 自动处理重复的仓库、PR和Commit，确保数据唯一性。
+  * **日志记录**: 完整的日志记录转换过程，便于追踪。
+
+### 如何使用
+
+1.  **确认数据源**: 确保 `github_pr_data` 目录中已经存在由 `crawler.py` 生成的 `.jsonl` 文件。
+2.  **配置目标语言**: 打开 `jsonl_to_sqlite.py` 文件，在底部的 `main` 函数中，修改 `languages` 列表，指定需要导入数据库的语言。
+    ```python
+    # 示例: 只将python相关的数据导入数据库
+    languages = ['python']
+    ```
+3.  **运行转换脚本**:
+    ```bash
+    python jsonl_to_sqlite.py
+    ```
+
+运行结束后，项目根目录下会生成一个名为 `github_pr_data.db` 的 SQLite 数据库文件。您可以使用任何 SQLite 可视化工具（如 DBeaver, DB Browser for SQLite）来查看和分析它。
+
+-----
+
+## 🏛️ 数据库表结构 (Database Schema)
+
+`jsonl_to_sqlite.py` 脚本创建的数据库包含以下核心表格，它们通过 `id` 和 `*_id` 字段相互关联：
+
+1.  **`repositories`**
+
+      * 存储仓库的基本信息。
+      * `id`, `owner`, `name`, `full_name` (唯一), `language`, `stars`, `url`, `created_at`
+
+2.  **`pull_requests`**
+
+      * 存储 PR 的元数据。
+      * 关联到 `repositories` 表。
+      * `id`, `repo_id` (外键), `pr_number`, `title`, `body`, `author`, `state`, `created_at`, `merged_at`, `additions`, `deletions`, `changed_files`, `commits_count`, `review_comments_count`
+
+3.  **`commits`**
+
+      * 存储 PR 中的每一次 commit。
+      * 关联到 `pull_requests` 和 `repositories` 表。
+      * `id`, `repo_id` (外键), `pr_id` (外键), `commit_hash` (唯一), `message`, `author`, `committed_at`
+
+4.  **`file_changes`**
+
+      * 记录每次 commit 中发生了变更的文件。
+      * 关联到 `commits` 表。
+      * `id`, `commit_id` (外键), `file_path`, `change_type` ('added', 'modified', 'deleted'), `file_language`, `additions`, `deletions`, `patch_content`
+
+5.  **`function_changes` & `class_changes`**
+
+      * 记录代码中函数和类的具体变更。
+      * 关联到 `file_changes` 表。
+      * `id`, `file_change_id` (外键), `function_name`/`class_name`, `change_type` ('added', 'removed'), `line_content`
+
+6.  **`diff_hunks`**
+
+      * 结构化存储 `patch` 内容的数据块。
+      * 关联到 `file_changes` 表。
+      * `id`, `file_change_id` (外键), `hunk_index`, `old_start`, `old_count`, `new_start`, `new_count`, `context`, `content`
+
+7.  **`file_imports`**
+
+      * 记录文件中提取出的依赖导入语句。
+      * 关联到 `file_changes` 表。
+      * `id`, `file_change_id` (外键), `import_statement`, `module_name`, `imported_items`
+
+8.  **`review_comments`**
+
+      * 记录 PR 的所有审查评论。
+      * 关联到 `pull_requests` 表。
+      * `id`, `pr_id` (外键), `comment_type`, `reviewer`, `comment_text`, `file_path`, `line_number`, `created_at`
